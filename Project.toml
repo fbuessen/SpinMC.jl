@@ -1,0 +1,15 @@
+name = "SpinMC"
+uuid = "341a0f32-da10-4b75-900e-7f27269b54d1"
+authors = ["Finn Lasse Buessen <fbuessen@physics.utoronto.ca>"]
+version = "0.1.0"
+
+[deps]
+BinningAnalysis = "b7192094-8e58-5052-a244-180a858778ee"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
+Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
