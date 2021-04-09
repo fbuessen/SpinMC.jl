@@ -6,10 +6,13 @@
     uc = UnitCell(a1, a2)
     b1 = addBasisSite!(uc, basis[1])
     b2 = addBasisSite!(uc, basis[2])
-    JKx = [2.0 0.0 0.0; 0.0 1.0 0.0; 0.0 0.0 1.0]
+    J = [1.0 0.0 0.0; 0.0 1.0 0.0; 0.0 0.0 1.0]
+    Kx = [1.0 0.0 0.0; 0.0 0.0 0.0; 0.0 0.0 0.0]
+    JKx = J + Kx
     JKy = [1.0 0.0 0.0; 0.0 2.0 0.0; 0.0 0.0 1.0]
     JKz = [1.0 0.0 0.0; 0.0 1.0 0.0; 0.0 0.0 2.0]
-    addInteraction!(uc, b1, b2, JKx, (0, 0))
+    addInteraction!(uc, b1, b2, J, (0, 0))
+    addInteraction!(uc, b1, b2, Kx, (0, 0))
     addInteraction!(uc, b1, b2, JKy, (0, -1))
     addInteraction!(uc, b1, b2, JKz, (-1, 0))
     setInteractionOnsite!(uc, b1, 2.0*ones(3,3))
