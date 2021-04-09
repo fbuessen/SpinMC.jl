@@ -1,6 +1,7 @@
 ![SpinMC.jl](doc/src/assets/logo.png)
 
 [![](https://github.com/fbuessen/SpinMC.jl/actions/workflows/runtests.yml/badge.svg)](https://github.com/fbuessen/SpinMC.jl/actions/workflows/runtests.yml)
+[![codecov](https://codecov.io/gh/fbuessen/SpinMC.jl/branch/master/graph/badge.svg?token=KGWL71KH8F)](https://codecov.io/gh/fbuessen/SpinMC.jl)
 
 The package SpinMC.jl provides a flexible Markov chain Monte Carlo implementation for classical lattice spin models. 
 It is suitable to simulate microscopic spin models which are described by a Hamiltonian of the form 
