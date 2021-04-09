@@ -63,7 +63,7 @@ function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing) where T
         if commSize > 1
             allBetas = zeros(commSize)
             allBetas[rank + 1] = mc.beta
-            MPI.Allgather!(MPI.IN_PLACE, allBetas, 1, MPI.COMM_WORLD)    
+            MPI.Allgather!(UBuffer(allBetas, 1), MPI.COMM_WORLD)
             enableMPI = true
             rank == 0 && @printf("MPI detected. Enabling replica exchanges across %d simulations.\n", commSize)
         end
@@ -172,10 +172,10 @@ function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing) where T
                 replicaExchangeAcceptanceRate = 100.0 * statistics.acceptedReplicaExchanges / statistics.attemptedReplicaExchanges
                 allLocalAppectanceRate = zeros(commSize)
                 allLocalAppectanceRate[rank + 1] = localUpdateAcceptanceRate
-                MPI.Allgather!(MPI.IN_PLACE, allLocalAppectanceRate, 1, MPI.COMM_WORLD)
+                MPI.Allgather!(UBuffer(allLocalAppectanceRate, 1), MPI.COMM_WORLD)
                 allReplicaExchangeAcceptanceRate = zeros(commSize)
                 allReplicaExchangeAcceptanceRate[rank + 1] = replicaExchangeAcceptanceRate
-                MPI.Allgather!(MPI.IN_PLACE, allReplicaExchangeAcceptanceRate, 1, MPI.COMM_WORLD)
+                MPI.Allgather!(UBuffer(allReplicaExchangeAcceptanceRate, 1), MPI.COMM_WORLD)
             end
 
             #print statistics
