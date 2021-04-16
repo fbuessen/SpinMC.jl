@@ -260,15 +260,15 @@ for i in 1:N
         for k in 1:length(lattice)
             z += cos(dot((kx[i],ky[j]),getSitePosition(lattice,k))) * correlation[k]
         end
-        structurefactor[i,j] = z / length(lattice)
+        structurefactor[j,i] = z / length(lattice)
     end
 end
 
 # Plot result
 using Plots
 heatmap(kx,ky,structurefactor,aspect_ratio=1,xrange=(-2pi,2pi),yrange=(-2pi,2pi),clims=(0,1),xlabel="kx", ylabel="ky")
-xs = [0.0, 2.0pi/sqrt(3.0), 2.0pi/sqrt(3.0), 0.0, -2.0pi/sqrt(3.0), -2.0pi/sqrt(3.0), 0.0]
-ys = [4.0pi/3.0, 2.0pi/3.0, -2.0pi/3.0, -4.0pi/3.0, -2.0pi/3.0, 2.0pi/3.0, 4.0pi/3.0]
+xs = [4.0pi/3.0, 2.0pi/3.0, -2.0pi/3.0, -4.0pi/3.0, -2.0pi/3.0, 2.0pi/3.0, 4.0pi/3.0]
+ys = [0.0, 2.0pi/sqrt(3.0), 2.0pi/sqrt(3.0), 0.0, -2.0pi/sqrt(3.0), -2.0pi/sqrt(3.0), 0.0]
 plot!(xs, ys, label="Extended BZ")
 ```
 ![](doc/src/assets/plot_structurefactor.png)
