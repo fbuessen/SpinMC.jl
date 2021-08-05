@@ -67,7 +67,7 @@ function getMagnetization(lattice::Lattice{D,N}) where {D,N}
         my += spin[2]
         mz += spin[3]
     end
-    return sqrt(mx*mx + my*my + mz*mz) / length(lattice)
+    return [mx, my, mz] / length(lattice)
 end
 
 function getCorrelation(lattice::Lattice{D,N}, spin::Int = 1) where {D,N}

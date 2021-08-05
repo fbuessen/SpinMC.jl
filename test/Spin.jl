@@ -29,7 +29,7 @@
     setSpin!(lattice, 1, (0.0, 0.0, -1.0))
     @test getEnergy(lattice) ≈ -42.0
 
-    @test getMagnetization(lattice) ≈ 30.0/32.0
+    @test getMagnetization(lattice) ≈ [0.0, 0.0, 30.0/32.0]
     @test all(getCorrelation(lattice, 1) .≈ [(i == 1 ? 1.0 : -1.0) for i in 1:32])
     @test all(getCorrelation(lattice, 2) .≈ [(i == 1 ? -1.0 : 1.0) for i in 1:32])
 end
