@@ -49,6 +49,11 @@ lattice = Lattice(uc, L)
 Note that the interactions, which are added to the unit cell by means of the `addInteraction!` function are directed from basis site `b1` to basis site `b2`. It is thus straight-forward to implement e.g. antisymmetric [Dzyaloshinskii–Moriya](https://en.wikipedia.org/wiki/Antisymmetric_exchange) interactions. 
 Similarly, since the interactions are defined individually for every pair of lattice sites, it is readily possible to implement e.g. bond-directional [Kitaev](https://arxiv.org/abs/cond-mat/0506438) exchange. 
 
+The lattice is constructed by repeating the unit cell, including all basis sites and lattice bonds. 
+**The bonds should be defined such that double counting is avoided**. 
+For example, in the case of the honeycomb lattice, we obly define three nearest neighbor bonds, despite the unit cell having two basis sites with three nearest neighbors each. 
+Similarly, for a cubic lattice (see example section below), we define three nearest neighbor bonds despite each lattice site having six nearest neighbors. 
+
 ## Launch a Monte Carlo simulation
 With the lattice object created above, we are now ready to launch the Monte Carlo simulation. 
 
