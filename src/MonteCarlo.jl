@@ -14,7 +14,7 @@ mutable struct MonteCarloStatistics
     MonteCarloStatistics() = new(0, 0, 0, 0, 0, time())
 end
 
-mutable struct MonteCarlo{T<:Lattice}
+mutable struct MonteCarlo{T<:Lattice,U<:AbstractRNG}
     lattice::T
     
     beta::Float64
@@ -25,7 +25,7 @@ mutable struct MonteCarlo{T<:Lattice}
     reportInterval::Int
     checkpointInterval::Int
 
-    rng::MersenneTwister
+    rng::U
     seed::UInt
     sweep::Int
 
@@ -41,9 +41,9 @@ function MonteCarlo(
     replicaExchangeRate::Int = 10, 
     reportInterval::Int = round(Int, 0.05 * (thermalizationSweeps + measurementSweeps)), 
     checkpointInterval::Int = 3600, 
-    rng::MersenneTwister = copy(Random.GLOBAL_RNG), 
+    rng::U = copy(Random.GLOBAL_RNG), 
     seed::UInt = rand(Random.RandomDevice(),UInt)
-    ) where T<:Lattice
+    ) where T<:Lattice where U<:AbstractRNG
 
     mc = MonteCarlo(deepcopy(lattice), beta, thermalizationSweeps, measurementSweeps, measurementRate, replicaExchangeRate, reportInterval, checkpointInterval, rng, seed, 0, Observables(lattice))
     Random.seed!(mc.rng, mc.seed)
