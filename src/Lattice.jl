@@ -21,7 +21,7 @@ function Lattice(uc::UnitCell{D}, L::NTuple{D,Int}) where D
     interactionTargetSites = [ Vector{Tuple{Int,NTuple{D,Int},Matrix{Float64}}}(undef,0) for i in 1:length(uc.basis) ] #tuples of (b_target, offset, M)
     for x in uc.interactions
         b1, b2, offset, M = x
-        b1 == b2 && offset == Tuple(zeros(D)) && error("Interaction cannot be local. Use setInteractionOnsite!() instead.")
+        b1 == b2 && offset .% L == Tuple(zeros(D)) && error("Interaction cannot be local. Use setInteractionOnsite!() instead.")
         
         #locate existing coupling to target site and add interaction matrix
         for i in 1:length(interactionTargetSites[b1])
