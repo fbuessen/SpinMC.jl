@@ -70,11 +70,13 @@ function getMagnetization(lattice::Lattice{D,N}) where {D,N}
     return [mx, my, mz] / length(lattice)
 end
 
-function getCorrelation(lattice::Lattice{D,N}, spin::Int = 1) where {D,N}
-    corr = zeros(length(lattice))
-    s0 = getSpin(lattice, spin)
-    for i in 1:length(lattice)
-        corr[i] = dot(s0, getSpin(lattice, i))
+function getCorrelation(lattice::Lattice{D,N}) where {D,N}
+    corr = zeros(length(lattice), length(lattice.unitcell.basis))
+    for i in 1:length(lattice.unitcell.basis)
+        s0 = getSpin(lattice, i)
+        for j in 1:length(lattice)
+            corr[j,i] = dot(s0, getSpin(lattice, j))
+        end
     end
     return corr
 end

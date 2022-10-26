@@ -32,10 +32,12 @@ for i in 1:N
     for j in 1:N
         z = 0.0
         # Compute Fourier transformation at momentum (kx, ky). The real-space position of the i-th spin is obtained via getSitePosition(lattice,i). 
-        for k in 1:length(lattice)
-            z += cos(dot((kx[i],ky[j]),getSitePosition(lattice,k))) * correlation[k]
+        for b in 1:length(lattice.unitcell.basis)
+            for k in 1:length(lattice)
+                z += cos(dot((kx[i],ky[j]),getSitePosition(lattice,k).-getSitePosition(lattice,b))) * correlation[k,b]
+            end
         end
-        structurefactor[j,i] = z / length(lattice)
+        structurefactor[j,i] = z / (length(lattice) * length(lattice.unitcell.basis))
     end
 end
 
