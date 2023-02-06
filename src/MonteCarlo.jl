@@ -34,7 +34,7 @@ end
 
 function MonteCarlo(
     lattice::T, 
-    beta::Float64, 
+    beta::Float64,
     thermalizationSweeps::Int, 
     measurementSweeps::Int; 
     measurementRate::Int = 1, 
@@ -51,7 +51,7 @@ function MonteCarlo(
     return mc
 end
 
-function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing) where T<:Lattice
+function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing, resetSpins::Bool=true) where T<:Lattice
     #init MPI
     rank = 0
     commSize = 1
@@ -77,7 +77,7 @@ function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing) where T
     end
     
     #init spin configuration
-    if mc.sweep == 0
+    if (mc.sweep == 0) && resetSpins
         for i in 1:length(mc.lattice)
             setSpin!(mc.lattice, i, uniformOnSphere(mc.rng))
         end
@@ -224,4 +224,26 @@ function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing) where T
     #return
     rank == 0 && @printf("Simulation finished on %s.\n", Dates.format(Dates.now(), "dd u yyyy HH:MM:SS"))
     return nothing    
+end
+
+function runSA(mc::MonteCarlo{T}, betas::Vector{Float64}; outfile::Union{String,Nothing}=nothing, resetSpins::Bool=true) where T<:Lattice
+    if resetSpins
+        for i in 1:length(mc.lattice)
+            setSpin!(mc.lattice, i, uniformOnSphere(mc.rng))
+        end
+    end
+    mcCurrent=deepcopy(mc)
+    mcList=Vector{MonteCarlo}(undef,length(betas))
+    for i in eachindex(betas)
+        mcCurrent.beta=betas[i]
+        mcCurrent.sweep=0
+        mcCurrent.observables=Observables(mc.lattice)
+        if outfile==nothing
+            run!(mcCurrent,resetSpins=false)
+        else
+            run!(mcCurrent,resetSpins=false,outfile=outfile*string(betas)*".h5")
+        end
+        mcList[i]=deepcopy(mcCurrent)
+    end
+    return mcList
 end
