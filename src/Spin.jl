@@ -80,3 +80,9 @@ function getCorrelation(lattice::Lattice{D,N}) where {D,N}
     end
     return corr
 end
+
+function rotSpin180(s,axis)
+    x1,y1,z1=s
+    x,y,z=axis
+    return (2*x*y*y1+2*x*z*z1+x1*(2*x^2-1),2*x*x1*y+2*y*z*z1+y1*(2*y^2-1),2*x*x1*z+2*y*y1*z+z1*(2*z^2-1))
+end

@@ -19,3 +19,11 @@ function InteractionMatrix(M::T) where T<:AbstractMatrix
     m = InteractionMatrix(M[1,1], M[1,2], M[1,3], M[2,1], M[2,2], M[2,3], M[3,1], M[3,2], M[3,3])
     return m
 end
+
+function Base.:*(M::SpinMC.InteractionMatrix, s)
+    return ((M.m11 * s[1] + M.m12 * s[2] + M.m13 * s[3]) , (M.m21 * s[1] + M.m22 * s[2] + M.m23 * s[3]) , (M.m31 * s[1] + M.m32 * s[2] + M.m33 * s[3]))
+end
+
+function Base.:*(s,M::SpinMC.InteractionMatrix)
+    Base.:*(M,s)
+end

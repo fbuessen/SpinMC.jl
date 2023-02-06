@@ -114,6 +114,18 @@ function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing, resetSp
         end
         statistics.sweeps += 1
 
+        #perform microcanonical sweep
+        for site in 1:length(mc.lattice)
+            sj=(0.,0.,0.)
+            for (ii,jj) in zip(mc.lattice.interactionSites[site],mc.lattice.interactionMatrices[site])
+                sj=sj .+ jj*getSpin(mc.lattice,ii)
+            end
+            #Normalize the sj vector to use for update
+            sj=sj./norm(sj)
+            newSpinState=rotSpin180(getSpin(mc.lattice,site),sj)
+            setSpin!(mc.lattice,site,newSpinState)
+        end
+
         #perform replica exchange
         if enableMPI && mc.sweep % mc.replicaExchangeRate == 0
             #determine MPI rank to exchagne configuration with
