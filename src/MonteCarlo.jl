@@ -128,6 +128,7 @@ function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing, resetSp
                     for (ii,jj) in zip(mc.lattice.interactionSites[site],mc.lattice.interactionMatrices[site])
                         sj=sj .+ jj*getSpin(mc.lattice,ii)
                     end
+                    sj=sj .+ getInteractionField(mc.lattice, site)
                     #Normalize the sj vector to use for update
                     sj=sj./norm(sj)
                     newSpinState=rotSpin180(getSpin(mc.lattice,site),sj)
