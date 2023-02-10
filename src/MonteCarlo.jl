@@ -21,6 +21,8 @@ mutable struct MonteCarlo{T<:Lattice,U<:AbstractRNG}
     thermalizationSweeps::Int
     measurementSweeps::Int
     measurementRate::Int
+    microcanonicalPerSweep::Int
+    microcanonicalRate::Int
     replicaExchangeRate::Int
     reportInterval::Int
     checkpointInterval::Int
@@ -38,6 +40,8 @@ function MonteCarlo(
     thermalizationSweeps::Int, 
     measurementSweeps::Int; 
     measurementRate::Int = 1, 
+    microcanonicalPerSweep::Int = 1,
+    microcanonicalRate::Int = 1,
     replicaExchangeRate::Int = 10, 
     reportInterval::Int = round(Int, 0.05 * (thermalizationSweeps + measurementSweeps)), 
     checkpointInterval::Int = 3600, 
@@ -45,7 +49,9 @@ function MonteCarlo(
     seed::UInt = rand(Random.RandomDevice(),UInt)
     ) where T<:Lattice where U<:AbstractRNG
 
-    mc = MonteCarlo(deepcopy(lattice), beta, thermalizationSweeps, measurementSweeps, measurementRate, replicaExchangeRate, reportInterval, checkpointInterval, rng, seed, 0, Observables(lattice))
+    mc = MonteCarlo(deepcopy(lattice), beta, thermalizationSweeps, measurementSweeps, 
+    measurementRate, microcanonicalPerSweep,microcanonicalRate,replicaExchangeRate,
+    reportInterval, checkpointInterval, rng, seed, 0, Observables(lattice))
     Random.seed!(mc.rng, mc.seed)
     
     return mc
@@ -115,15 +121,19 @@ function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing, resetSp
         statistics.sweeps += 1
 
         #perform microcanonical sweep
-        for site in 1:length(mc.lattice)
-            sj=(0.,0.,0.)
-            for (ii,jj) in zip(mc.lattice.interactionSites[site],mc.lattice.interactionMatrices[site])
-                sj=sj .+ jj*getSpin(mc.lattice,ii)
+        if mc.sweep % mc.microcanonicalRate == 0
+            for i in 1:mc.microcanonicalPerSweep
+                for site in 1:length(mc.lattice)
+                    sj=(0.,0.,0.)
+                    for (ii,jj) in zip(mc.lattice.interactionSites[site],mc.lattice.interactionMatrices[site])
+                        sj=sj .+ jj*getSpin(mc.lattice,ii)
+                    end
+                    #Normalize the sj vector to use for update
+                    sj=sj./norm(sj)
+                    newSpinState=rotSpin180(getSpin(mc.lattice,site),sj)
+                    setSpin!(mc.lattice,site,newSpinState)
+                end
             end
-            #Normalize the sj vector to use for update
-            sj=sj./norm(sj)
-            newSpinState=rotSpin180(getSpin(mc.lattice,site),sj)
-            setSpin!(mc.lattice,site,newSpinState)
         end
 
         #perform replica exchange
