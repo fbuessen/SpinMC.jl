@@ -124,15 +124,17 @@ function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing, resetSp
         if mc.sweep % mc.microcanonicalRate == 0
             for i in 1:mc.microcanonicalPerSweep
                 for site in 1:length(mc.lattice)
-                    sj=(0.,0.,0.)
-                    for (ii,jj) in zip(mc.lattice.interactionSites[site],mc.lattice.interactionMatrices[site])
-                        sj=sj .+ jj*getSpin(mc.lattice,ii)
+                    if getInteractionOnsite(mc.lattice, site) == zeros(3,3)
+                        sj=(0.,0.,0.)
+                        for (ii,jj) in zip(mc.lattice.interactionSites[site],mc.lattice.interactionMatrices[site])
+                            sj=sj .+ jj*getSpin(mc.lattice,ii)
+                        end
+                        sj=sj .+ getInteractionField(mc.lattice, site)
+                        #Normalize the sj vector to use for update
+                        sj=sj./norm(sj)
+                        newSpinState=rotSpin180(getSpin(mc.lattice,site),sj)
+                        setSpin!(mc.lattice,site,newSpinState)
                     end
-                    sj=sj .+ getInteractionField(mc.lattice, site)
-                    #Normalize the sj vector to use for update
-                    sj=sj./norm(sj)
-                    newSpinState=rotSpin180(getSpin(mc.lattice,site),sj)
-                    setSpin!(mc.lattice,site,newSpinState)
                 end
             end
         end
