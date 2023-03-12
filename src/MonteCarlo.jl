@@ -21,7 +21,9 @@ mutable struct MonteCarlo{T<:Lattice,U<:AbstractRNG}
     thermalizationSweeps::Int
     measurementSweeps::Int
     measurementRate::Int
+    microcanonicalRoundsPerSweep::Int
     replicaExchangeRate::Int
+    randomizeInitialConfiguration::Bool
     reportInterval::Int
     checkpointInterval::Int
 
@@ -34,18 +36,35 @@ end
 
 function MonteCarlo(
     lattice::T, 
-    beta::Float64, 
+    beta::Float64,
     thermalizationSweeps::Int, 
     measurementSweeps::Int; 
     measurementRate::Int = 1, 
+    microcanonicalRoundsPerSweep::Int = 0,
     replicaExchangeRate::Int = 10, 
+    randomizeInitialConfiguration = true,
     reportInterval::Int = round(Int, 0.05 * (thermalizationSweeps + measurementSweeps)), 
     checkpointInterval::Int = 3600, 
     rng::U = copy(Random.GLOBAL_RNG), 
     seed::UInt = rand(Random.RandomDevice(),UInt)
     ) where T<:Lattice where U<:AbstractRNG
 
-    mc = MonteCarlo(deepcopy(lattice), beta, thermalizationSweeps, measurementSweeps, measurementRate, replicaExchangeRate, reportInterval, checkpointInterval, rng, seed, 0, Observables(lattice))
+    mc = MonteCarlo(
+        deepcopy(lattice), 
+        beta, 
+        thermalizationSweeps, 
+        measurementSweeps, 
+        measurementRate, 
+        microcanonicalRoundsPerSweep,
+        replicaExchangeRate,
+        randomizeInitialConfiguration,
+        reportInterval, 
+        checkpointInterval, 
+        rng, 
+        seed, 
+        0, 
+        Observables(lattice)
+    )
     Random.seed!(mc.rng, mc.seed)
     
     return mc
@@ -76,8 +95,17 @@ function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing) where T
         isfile(outfile) && error("File ", outfile, " already exists. Terminating.")
     end
     
+    #check validity of microcanonical updates
+    if mc.microcanonicalRoundsPerSweep != 0
+        for site in 1:length(mc.lattice)
+            if getInteractionOnsite(mc.lattice, site) != zeros(3,3)
+                error("Microcanonical updates are only supported for models without on-size interactions.")
+            end
+        end
+    end
+
     #init spin configuration
-    if mc.sweep == 0
+    if (mc.sweep == 0) && mc.randomizeInitialConfiguration
         for i in 1:length(mc.lattice)
             setSpin!(mc.lattice, i, uniformOnSphere(mc.rng))
         end
@@ -95,7 +123,7 @@ function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing) where T
 
     while mc.sweep < totalSweeps
         #perform local sweep
-        for i in 1:length(mc.lattice)
+        for _ in 1:length(mc.lattice)
             #select random spin
             site = rand(mc.rng, 1:length(mc.lattice))
 
@@ -113,6 +141,14 @@ function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing) where T
             end
         end
         statistics.sweeps += 1
+
+        #perform microcanonical sweep
+        for _ in 1:mc.microcanonicalRoundsPerSweep
+            for site in 1:length(mc.lattice)
+                newSpinState = microcanonicalRotation(mc.lattice, site)
+                setSpin!(mc.lattice, site, newSpinState)
+            end
+        end
 
         #perform replica exchange
         if enableMPI && mc.sweep % mc.replicaExchangeRate == 0
@@ -224,4 +260,24 @@ function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing) where T
     #return
     rank == 0 && @printf("Simulation finished on %s.\n", Dates.format(Dates.now(), "dd u yyyy HH:MM:SS"))
     return nothing    
+end
+
+function anneal(mc::MonteCarlo{T}, betas::Vector{Float64}; outfile::Union{String,Nothing}=nothing) where T<:Lattice
+    simulations = Vector{MonteCarlo}(undef, length(betas))
+    
+    for (i, beta) in enumerate(betas)
+        #create one simulation for each provided beta based on the specified mc template
+        simulations[i] = deepcopy(mc)
+        simulations[i].beta = beta
+        if i != 1
+            #if this is not the first simulation, copy spin configuration from the previous one
+            simulations[i].randomizeInitialConfiguration = false
+            simulations[i].lattice = deepcopy(simulations[i-1].lattice)
+        end
+        #set outfile name for current simulation and run
+        out = outfile === nothing ? outfile : outfile * "." * string(i-1)
+        run!(simulations[i], outfile=out)
+    end
+
+    return simulations
 end
