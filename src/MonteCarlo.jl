@@ -21,9 +21,9 @@ mutable struct MonteCarlo{T<:Lattice,U<:AbstractRNG}
     thermalizationSweeps::Int
     measurementSweeps::Int
     measurementRate::Int
-    microcanonicalPerSweep::Int
-    microcanonicalRate::Int
+    microcanonicalRoundsPerSweep::Int
     replicaExchangeRate::Int
+    randomizeInitialConfiguration::Bool
     reportInterval::Int
     checkpointInterval::Int
 
@@ -40,24 +40,37 @@ function MonteCarlo(
     thermalizationSweeps::Int, 
     measurementSweeps::Int; 
     measurementRate::Int = 1, 
-    microcanonicalPerSweep::Int = 1,
-    microcanonicalRate::Int = 1,
+    microcanonicalRoundsPerSweep::Int = 0,
     replicaExchangeRate::Int = 10, 
+    randomizeInitialConfiguration = true,
     reportInterval::Int = round(Int, 0.05 * (thermalizationSweeps + measurementSweeps)), 
     checkpointInterval::Int = 3600, 
     rng::U = copy(Random.GLOBAL_RNG), 
     seed::UInt = rand(Random.RandomDevice(),UInt)
     ) where T<:Lattice where U<:AbstractRNG
 
-    mc = MonteCarlo(deepcopy(lattice), beta, thermalizationSweeps, measurementSweeps, 
-    measurementRate, microcanonicalPerSweep,microcanonicalRate,replicaExchangeRate,
-    reportInterval, checkpointInterval, rng, seed, 0, Observables(lattice))
+    mc = MonteCarlo(
+        deepcopy(lattice), 
+        beta, 
+        thermalizationSweeps, 
+        measurementSweeps, 
+        measurementRate, 
+        microcanonicalRoundsPerSweep,
+        replicaExchangeRate,
+        randomizeInitialConfiguration,
+        reportInterval, 
+        checkpointInterval, 
+        rng, 
+        seed, 
+        0, 
+        Observables(lattice)
+    )
     Random.seed!(mc.rng, mc.seed)
     
     return mc
 end
 
-function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing, resetSpins::Bool=true) where T<:Lattice
+function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing) where T<:Lattice
     #init MPI
     rank = 0
     commSize = 1
@@ -82,8 +95,17 @@ function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing, resetSp
         isfile(outfile) && error("File ", outfile, " already exists. Terminating.")
     end
     
+    #check validity of microcanonical updates
+    if mc.microcanonicalRoundsPerSweep != 0
+        for site in 1:length(mc.lattice)
+            if getInteractionOnsite(mc.lattice, site) != zeros(3,3)
+                error("Microcanonical updates are only supported for models without on-size interactions.")
+            end
+        end
+    end
+
     #init spin configuration
-    if (mc.sweep == 0) && resetSpins
+    if (mc.sweep == 0) && mc.randomizeInitialConfiguration
         for i in 1:length(mc.lattice)
             setSpin!(mc.lattice, i, uniformOnSphere(mc.rng))
         end
@@ -101,7 +123,7 @@ function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing, resetSp
 
     while mc.sweep < totalSweeps
         #perform local sweep
-        for i in 1:length(mc.lattice)
+        for _ in 1:length(mc.lattice)
             #select random spin
             site = rand(mc.rng, 1:length(mc.lattice))
 
@@ -121,21 +143,10 @@ function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing, resetSp
         statistics.sweeps += 1
 
         #perform microcanonical sweep
-        if mc.sweep % mc.microcanonicalRate == 0
-            for i in 1:mc.microcanonicalPerSweep
-                for site in 1:length(mc.lattice)
-                    if getInteractionOnsite(mc.lattice, site) == zeros(3,3)
-                        sj=(0.,0.,0.)
-                        for (ii,jj) in zip(mc.lattice.interactionSites[site],mc.lattice.interactionMatrices[site])
-                            sj=sj .+ jj*getSpin(mc.lattice,ii)
-                        end
-                        sj=sj .+ getInteractionField(mc.lattice, site)
-                        #Normalize the sj vector to use for update
-                        sj=sj./norm(sj)
-                        newSpinState=rotSpin180(getSpin(mc.lattice,site),sj)
-                        setSpin!(mc.lattice,site,newSpinState)
-                    end
-                end
+        for _ in 1:mc.microcanonicalRoundsPerSweep
+            for site in 1:length(mc.lattice)
+                newSpinState = microcanonicalRotation(mc.lattice, site)
+                setSpin!(mc.lattice, site, newSpinState)
             end
         end
 
@@ -251,7 +262,7 @@ function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing, resetSp
     return nothing    
 end
 
-function runSA(mc::MonteCarlo{T}, betas::Vector{Float64}; outfile::Union{String,Nothing}=nothing, resetSpins::Bool=true) where T<:Lattice
+function runSA(mc::MonteCarlo{T}, betas::Vector{Float64}; outfile::Union{String,Nothing}=nothing) where T<:Lattice
     if resetSpins
         for i in 1:length(mc.lattice)
             setSpin!(mc.lattice, i, uniformOnSphere(mc.rng))

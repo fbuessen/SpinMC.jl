@@ -8,6 +8,27 @@ function uniformOnSphere(rng = Random.GLOBAL_RNG)
     return (r * cos(phi), r * sin(phi), z)
 end
 
+function microcanonicalRotation(lattice::Lattice{D,N}, site::Int) where {D,N}
+    #compute rotation axis
+    axis = (0.0, 0.0, 0.0)
+    for (interactionSite, interactionMatrix) in zip(lattice.interactionSites[site], lattice.interactionMatrices[site])
+        axis = axis .+ interactionMatrix * getSpin(lattice, interactionSite)
+    end
+    axis = axis .+ getInteractionField(mc.lattice, site)
+    axis = axis ./ norm(axis)
+
+    #pi-rotation of current spin around axis
+    return piRotation(getSpin(mc.lattice,site), axis)
+end
+
+function piRotation(spin, axis)
+    return (
+        2 * (axis[0]*axis[1]*spin[1] + axis[0]*axis[2]*spin[2] + spin[0]*axis[0]*axis[0]) - spin[0],
+        2 * (axis[0]*spin[0]*axis[1] + axis[1]*axis[2]*spin[2] + spin[1]*axis[1]*axis[1]) - spin[1],
+        2 * (axis[0]*spin[0]*axis[2] + axis[1]*spin[1]*axis[2] + spin[2]*axis[2]*axis[2]) - spin[2]
+    )
+end
+
 function exchangeEnergy(s1, M::InteractionMatrix, s2)::Float64
     return s1[1] * (M.m11 * s2[1] + M.m12 * s2[2] + M.m13 * s2[3]) + s1[2] * (M.m21 * s2[1] + M.m22 * s2[2] + M.m23 * s2[3]) + s1[3] * (M.m31 * s2[1] + M.m32 * s2[2] + M.m33 * s2[3])
 end
@@ -79,10 +100,4 @@ function getCorrelation(lattice::Lattice{D,N}) where {D,N}
         end
     end
     return corr
-end
-
-function rotSpin180(s,axis)
-    x1,y1,z1=s
-    x,y,z=axis
-    return (2*x*y*y1+2*x*z*z1+x1*(2*x^2-1),2*x*x1*y+2*y*z*z1+y1*(2*y^2-1),2*x*x1*z+2*y*y1*z+z1*(2*z^2-1))
 end
