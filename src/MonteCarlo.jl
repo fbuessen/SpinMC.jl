@@ -262,24 +262,22 @@ function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing) where T
     return nothing    
 end
 
-function runSA(mc::MonteCarlo{T}, betas::Vector{Float64}; outfile::Union{String,Nothing}=nothing) where T<:Lattice
-    if resetSpins
-        for i in 1:length(mc.lattice)
-            setSpin!(mc.lattice, i, uniformOnSphere(mc.rng))
+function anneal(mc::MonteCarlo{T}, betas::Vector{Float64}; outfile::Union{String,Nothing}=nothing) where T<:Lattice
+    simulations = Vector{MonteCarlo}(undef, length(betas))
+    
+    for (i, beta) in enumerate(betas)
+        #create one simulation for each provided beta based on the specified mc template
+        simulations[i] = deepcopy(mc)
+        simulations[i].beta = beta
+        if i != 1
+            #if this is not the first simulation, copy spin configuration from the previous one
+            simulations[i].randomizeInitialConfiguration = false
+            simulations[i].lattice = deepcopy(simulations[i-1].lattice)
         end
+        #set outfile name for current simulation and run
+        out = outfile === nothing ? outfile : outfile * "." * string(i-1)
+        run!(simulations[i], outfile=out)
     end
-    mcCurrent=deepcopy(mc)
-    mcList=Vector{MonteCarlo}(undef,length(betas))
-    for i in eachindex(betas)
-        mcCurrent.beta=betas[i]
-        mcCurrent.sweep=0
-        mcCurrent.observables=Observables(mc.lattice)
-        if outfile==nothing
-            run!(mcCurrent,resetSpins=false)
-        else
-            run!(mcCurrent,resetSpins=false,outfile=outfile*string(betas)*".h5")
-        end
-        mcList[i]=deepcopy(mcCurrent)
-    end
-    return mcList
+
+    return simulations
 end
