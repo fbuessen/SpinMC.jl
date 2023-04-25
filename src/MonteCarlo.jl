@@ -24,10 +24,13 @@ mutable struct MonteCarlo{T<:Lattice,U<:AbstractRNG}
     replicaExchangeRate::Int
     reportInterval::Int
     checkpointInterval::Int
+    recursionIterations::Int
+    recursionRate::Int
 
     rng::U
     seed::UInt
     sweep::Int
+    recursion::Int
 
     observables::Observables
 end
@@ -41,11 +44,13 @@ function MonteCarlo(
     replicaExchangeRate::Int = 10, 
     reportInterval::Int = round(Int, 0.05 * (thermalizationSweeps + measurementSweeps)), 
     checkpointInterval::Int = 3600, 
+    recursionIterations::Int = 0, 
+    recursionRate::Int = 1000, 
     rng::U = copy(Random.GLOBAL_RNG), 
     seed::UInt = rand(Random.RandomDevice(),UInt)
     ) where T<:Lattice where U<:AbstractRNG
 
-    mc = MonteCarlo(deepcopy(lattice), beta, thermalizationSweeps, measurementSweeps, measurementRate, replicaExchangeRate, reportInterval, checkpointInterval, rng, seed, 0, Observables(lattice))
+    mc = MonteCarlo(deepcopy(lattice), beta, thermalizationSweeps, measurementSweeps, measurementRate, replicaExchangeRate, reportInterval, checkpointInterval, recursionIterations, recursionRate, rng, seed, 0, 0, Observables(lattice))
     Random.seed!(mc.rng, mc.seed)
     
     return mc
@@ -66,6 +71,13 @@ function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing) where T
             MPI.Allgather!(UBuffer(allBetas, 1), MPI.COMM_WORLD)
             enableMPI = true
             rank == 0 && @printf("MPI detected. Enabling replica exchanges across %d simulations.\n", commSize)
+        end
+
+        #init parallell tempering recursion parameters
+        if mc.recursionIterations > 0
+            recursionStatistics = MonteCarloStatistics()
+            weightedSum = 0
+            weight = 0
         end
     end
 
@@ -129,6 +141,9 @@ function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing) where T
 
                 #check acceptance of new configuration
                 statistics.attemptedReplicaExchanges += 1
+                if mc.recursionIterations > 0
+                    recursionStatistics.attemptedReplicaExchanges += 1
+                end
                 exchangeAccepted = false
                 if iseven(rank)
                     p = exp(-(allBetas[rank + 1] - allBetas[partnerRank + 1]) * (partnerEnergy - energy))
@@ -142,6 +157,9 @@ function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing) where T
                     MPI.Sendrecv!(mc.lattice.spins, partnerRank, 0, partnerSpinConfiguration, partnerRank, 0, MPI.COMM_WORLD)
                     (mc.lattice.spins, partnerSpinConfiguration) = (partnerSpinConfiguration, mc.lattice.spins)
                     statistics.acceptedReplicaExchanges += 1
+                    if mc.recursionIterations > 0
+                        recursionStatistics.acceptedReplicaExchanges += 1
+                    end
                 end
             end
         end
@@ -151,6 +169,79 @@ function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing) where T
             if mc.sweep % mc.measurementRate == 0
                 performMeasurements!(mc.observables, mc.lattice, energy)
             end
+        end
+
+        #parallel tempering temperature recursion
+        if enableMPI && mc.recursionIterations > 0 && mc.recursion <= mc.recursionIterations && (mc.sweep + 1) % mc.recursionRate == 0
+            #measure exchange rates
+            replicaExchangeAcceptanceRate = recursionStatistics.acceptedReplicaExchanges / recursionStatistics.attemptedReplicaExchanges
+            allReplicaExchangeAcceptanceRate = zeros(commSize)
+            allReplicaExchangeAcceptanceRate[rank + 1] = replicaExchangeAcceptanceRate
+
+            #share the exchange rates among processes
+            MPI.Allgather!(UBuffer(allReplicaExchangeAcceptanceRate, 1), MPI.COMM_WORLD)
+
+            #save info for recursion
+            allReplicaExchangeAcceptanceRateMin = minimum(allReplicaExchangeAcceptanceRate)
+            weightedSum += allReplicaExchangeAcceptanceRateMin * allBetas[rank + 1]
+            weight += allReplicaExchangeAcceptanceRateMin
+
+            if mc.recursion != mc.recursionIterations
+                if rank == 0
+                    #print statistics
+                    str = ""
+                    str *= @sprintf("Temperature readjustment %d / %d\n", mc.recursion + 1, mc.recursionIterations)
+                    for n in 1:commSize
+                        str *= @sprintf("\t\tsimulation %d replica exchange acceptance rate : %.2f%%\n", n - 1, 100.0 * allReplicaExchangeAcceptanceRate[n])
+                    end
+                    str *= @sprintf("\n")
+                    print(str)
+
+                    #calculate the new betas in root process
+                    for n in 1:commSize
+                        if allReplicaExchangeAcceptanceRate[n] == 0.0
+                            allReplicaExchangeAcceptanceRate[n] = 0.01 # minimum allowed acceptance
+                        end
+                    end
+
+                    #calculate auxiliary quantities
+                    lambdaDenominator = 0.0
+                    for n in 2:commSize
+                        lambdaDenominator += allReplicaExchangeAcceptanceRate[n]*(allBetas[n] - allBetas[n - 1])
+                    end
+                    lambda = (allBetas[end]-allBetas[1]) / lambdaDenominator
+
+                    #apply recursion
+                    allBetasNew = zeros(commSize)
+                    allBetasNew[1] = allBetas[1]
+                    for n in 2:commSize
+                        allBetasNew[n] = allBetasNew[n - 1] + lambda * allReplicaExchangeAcceptanceRate[n] * (allBetas[n] - allBetas[n - 1])
+                    end
+                    allBetas = copy(allBetasNew)
+                end
+                #share betas with rest of processes
+                MPI.Bcast!(allBetas, 0, MPI.COMM_WORLD)
+
+                #update betas
+                mc.beta = allBetas[rank + 1]
+            else
+                #check if in every iteration the minimum acceptance was zero
+                if weight == 0.0
+                    error("Recursion failed, at least one acceptance ratio was zero in every recursion iteration.")
+                else
+                    rank == 0 && @printf("\t\tRecursion successful\n\n")
+                    #combine previous estimates of beta
+                    allBetas[rank + 1] = weightedSum / weight
+                    #update beta accross processes
+                    MPI.Allgather!(UBuffer(allBetas, 1), MPI.COMM_WORLD)
+                    mc.beta = allBetas[rank + 1]
+                end
+            end
+
+            #reset statistics
+            recursionStatistics = MonteCarloStatistics()
+
+            mc.recursion += 1
         end
 
         #increment sweep
