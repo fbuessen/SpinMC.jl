@@ -227,7 +227,7 @@ function run!(mc::MonteCarlo{T}; outfile::Union{String,Nothing}=nothing) where T
             else
                 #check if in every iteration the minimum acceptance was zero
                 if weight == 0.0
-                    error("Recursion failed, at least one acceptance ratio was zero in every recursion iteration.")
+                    error("Recursion failed, at least one replica exchange acceptance ratio was zero in every recursion iteration.")
                 else
                     rank == 0 && @printf("\t\tRecursion successful\n\n")
                     #combine previous estimates of beta
