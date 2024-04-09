@@ -1,7 +1,7 @@
-name = "SpinMC"
-uuid = "341a0f32-da10-4b75-900e-7f27269b54d1"
-authors = ["Finn Lasse Buessen <finn.buessen@utoronto.ca>"]
-version = "0.2.0"
+name = "SpinMCFork"
+uuid = "edf8b2c8-9016-4921-b7c8-1080a61585c0"
+authors = ["David Ramos <davidramossal@gmail.com>"]
+version = "0.1.0"
 
 [deps]
 BinningAnalysis = "b7192094-8e58-5052-a244-180a858778ee"
